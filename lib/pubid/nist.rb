@@ -3,6 +3,7 @@
 require "yaml"
 require "parslet"
 require "pubid-core"
+require "loc_mods"
 
 module Pubid
   module Nist

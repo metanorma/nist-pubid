@@ -6,7 +6,7 @@ Lightly.life = "24h"
 
 module Pubid::Nist
   class NistTechPubs
-    URL = "https://raw.githubusercontent.com/usnistgov/NIST-Tech-Pubs/nist-pages/xml/allrecords.xml".freeze
+    URL = "https://github.com/usnistgov/NIST-Tech-Pubs/releases/download/Oct2024/allrecords-MODS.xml"
 
     @converted_id = @converted_doi = {}
 
@@ -14,12 +14,27 @@ module Pubid::Nist
 
       attr_accessor :documents, :converted_id, :converted_doi
 
-      def fetch
+        def create_title(title, non_sort = nil)
+          content = title.gsub("\n", " ").squeeze(" ").strip
+          content = "#{non_sort.content}#{content}".squeeze(" ") if non_sort
+          content
+        end
+
+        def fetch
         Lightly.prune
         @documents ||= Lightly.get "documents" do
-          Nokogiri::XML(URI.open(URL))
-            .xpath("/body/query/doi_record/report-paper/report-paper_metadata")
-            .map { |doc| parse_docid doc }
+          LocMods::Collection.from_xml(OpenURI.open_uri(URL)).mods.map do |doc|
+            url = doc.location.reduce(nil) { |m, l| m || l.url.detect { |u| u.usage == "primary display" } }
+
+            title = doc.title_info.reduce([]) do |a, ti|
+              next a if ti.type == "alternative"
+
+              a += ti.title.map { |t| create_title(t, ti.non_sort[0]) }
+              a + ti.sub_title.map { |t| create_title(t) }
+            end.join(" - ")
+
+            { doi: url.content.gsub("https://doi.org/10.6028/", ""), title: title }
+          end
         end
       rescue StandardError => e
         warn e.message
@@ -27,18 +42,6 @@ module Pubid::Nist
       end
 
       def convert(doc)
-        id = @converted_id[doc[:id]] ||= Pubid::Nist::Identifier.parse(doc[:id])
-        return id unless doc.key?(:doi)
-
-        begin
-          doi = @converted_doi[doc[:doi]] ||=
-            Pubid::Nist::Identifier.parse(doc[:doi])
-        rescue Pubid::Core::Errors::ParseError
-          return id
-        end
-        # return more complete pubid
-        id.merge(doi)
-      rescue Pubid::Core::Errors::ParseError
         @converted_doi[doc[:doi]] ||= Pubid::Nist::Identifier.parse(doc[:doi])
       end
 
@@ -94,7 +97,6 @@ module Pubid::Nist
         fetch.lazy.map do |doc|
           final_doc = convert(doc)
           {
-            id: doc[:id],
             doi: doc[:doi],
             title: doc[:title],
             finalPubId: final_doc.to_s,
@@ -102,7 +104,6 @@ module Pubid::Nist
           }
         rescue Pubid::Core::Errors::ParseError
           {
-            id: doc[:id],
             doi: doc[:doi],
             title: doc[:title],
             finalPubId: "parse error",

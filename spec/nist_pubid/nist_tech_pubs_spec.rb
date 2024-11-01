@@ -1,14 +1,5 @@
 RSpec.describe Pubid::Nist::NistTechPubs, vcr: true do
   describe "#fetch" do
-    it "fetch doc identifiers from nist_tech_pubs" do
-      expect(described_class.fetch.map { |d| d[:id] })
-        .to include("NBS BH 1",
-                    "NIST SP 1800-15",
-                    "NIST SP 1265",
-                    "NBS FIPS 83",
-                    "NIST IR 8379")
-    end
-
     it "fetches doi identifiers" do
       expect(described_class.fetch.map { |d| d[:doi] })
         .to include("NBS.BH.1",
@@ -21,41 +12,15 @@ RSpec.describe Pubid::Nist::NistTechPubs, vcr: true do
 
   describe "#convert" do
     it "converts old pubid to new NIST PubID" do
-      expect(described_class.convert({ id: "NISTIR 8379" }).to_s)
+      expect(described_class.convert({ doi: "NISTIR.8379" }).to_s)
         .to eq("NIST IR 8379")
     end
 
     it "keeps correct NIST PubID the same" do
-      expect(described_class.convert({ id: "NIST SP 800-133r2" }).to_s)
-        .to eq("NIST SP 800-133r2")
-      expect(described_class.convert({ id: "NIST SP 800-160v1" }).to_s)
-        .to eq("NIST SP 800-160v1")
-    end
-
-    it "uses doi when cannot parse document id" do
-      expect(described_class.convert(
-               { id: "NBS CIRC re3", doi: "NBS.CIRC.5e3" },
-             ).to_s).to eq("NBS CIRC 5e3")
-    end
-
-    it "uses doi when doi more complete then id" do
-      expect(described_class.convert(
-               { id: "NIST SP 260-162", doi: "NIST SP 260-162 2006ed." },
-             ).to_s).to eq("NIST SP 260-162e2006")
-    end
-
-    it "combines data from id and doi" do
-      expect(described_class.convert(
-        { id: "NIST SP 260-162r1", doi: "NIST SP 260-162 2006ed." },
-      ).to_s).to eq("NIST SP 260-162e2006r1")
-    end
-
-    context "when doi code is wrong" do
-      it "skips merging with doi" do
-        expect(described_class.convert(
-                 { id: "NIST TN 1648", doi: "NISTPUB.0413171251" },
-               ).to_s).to eq("NIST TN 1648")
-      end
+      expect(described_class.convert({ doi: "NIST.SP.800-133r2" }).to_s(format = :mr))
+        .to eq("NIST.SP.800-133r2")
+      expect(described_class.convert({ doi: "NIST.SP.800-160v1" }).to_s(format = :mr))
+        .to eq("NIST.SP.800-160v1")
     end
   end
 
@@ -116,8 +81,7 @@ RSpec.describe Pubid::Nist::NistTechPubs, vcr: true do
 
     before do
       described_class.documents = [
-        { id: id,
-          doi: doi,
+        { doi: doi,
           title: title },
       ]
     end
@@ -127,8 +91,7 @@ RSpec.describe Pubid::Nist::NistTechPubs, vcr: true do
     it do
       expect(subject.to_a)
         .to eq([
-                 { id: id, doi: doi, title: title, mr: mr,
-                   finalPubId: finalPubId },
+                 { doi: doi, title: title, mr: mr, finalPubId: finalPubId },
                ])
     end
 
@@ -139,7 +102,7 @@ RSpec.describe Pubid::Nist::NistTechPubs, vcr: true do
       it do
         expect(subject.to_a)
           .to eq([
-                   { id: id, doi: doi, title: title, finalPubId: "parse error",
+                   { doi: doi, title: title, finalPubId: "parse error",
                      mr: "parse_error" },
                  ])
       end
